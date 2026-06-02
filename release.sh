@@ -11,5 +11,5 @@ concl="$(gh run list -R "$REPO" --workflow=CI --limit 30 --json headSha,status,c
   -q "[.[] | select(.headSha==\"$sha\")][0] | .conclusion // .status // \"none\"")"
 [ "$concl" = "success" ] || { echo "✗ CI is '$concl' for HEAD — release blocked (push + wait for green)"; exit 1; }
 git tag -a "$V" -m "$V"; git push origin "$V"
-gh release create "$V" -R "$REPO" --generate-notes --title "$V"
+gh release create "$V" -R "$REPO" --generate-notes --title "$V" --prerelease
 echo "✓ released $V — go get github.com/$REPO@$V"
