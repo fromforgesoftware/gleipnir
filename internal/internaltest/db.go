@@ -45,7 +45,7 @@ func GetDB(t *testing.T) *gormdb.DBClient {
 // container.
 func TruncateTables(t *testing.T, db *gormdb.DBClient) {
 	t.Helper()
-	require.NoError(t, db.Exec(`TRUNCATE TABLE gleipnir.connection, gleipnir.credential RESTART IDENTITY CASCADE;`).Error)
+	require.NoError(t, db.Exec(`TRUNCATE TABLE gleipnir.connection, gleipnir.credential, gleipnir.oauth_state RESTART IDENTITY CASCADE;`).Error)
 }
 
 func migratorDir() string {

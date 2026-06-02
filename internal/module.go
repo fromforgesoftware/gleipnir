@@ -80,6 +80,7 @@ func repositoriesFxModule() fx.Option {
 			fx.Annotate(db.NewConnectionRepository,
 				fx.As(new(app.ConnectionRepository)), fx.As(new(app.ConnectionStore))),
 			fx.Annotate(db.NewCredentialRepository, fx.As(new(app.CredentialStore))),
+			fx.Annotate(db.NewOAuthStateRepository, fx.As(new(app.OAuthStateStore))),
 		),
 	)
 }
@@ -103,7 +104,10 @@ func newLimiter() ratelimit.Limiter {
 	return ratelimit.New(ratelimit.NewInMemoryStore())
 }
 
-func newExchanger(client *httpclient.Client, limiter ratelimit.Limiter, secrets app.ClientSecrets) app.TokenExchanger {
+// newExchanger builds the HTTP exchanger that serves both the refresh
+// (TokenExchanger) and authorization_code (CodeExchanger) grants, so both share
+// the per-connector rate limiter.
+func newExchanger(client *httpclient.Client, limiter ratelimit.Limiter, secrets app.ClientSecrets) *app.HTTPExchanger {
 	return app.NewHTTPExchanger(client, limiter, secrets)
 }
 
@@ -113,7 +117,9 @@ func outboundFxModule() fx.Option {
 			newHTTPClient,
 			newLimiter,
 			app.NewEnvClientSecrets,
-			newExchanger,
+			app.NewEnvRedirectAllowlist,
+			fx.Annotate(newExchanger,
+				fx.As(new(app.TokenExchanger)), fx.As(new(app.CodeExchanger))),
 		),
 	)
 }
@@ -124,8 +130,21 @@ func usecasesFxModule() fx.Option {
 			fx.Annotate(app.NewLogNotifier, fx.As(new(app.ReauthNotifier))),
 			app.NewConnectionUsecase,
 			newTokenUsecase,
+			newOAuthUsecase,
 		),
 	)
+}
+
+func newOAuthUsecase(
+	conns app.ConnectionStore,
+	states app.OAuthStateStore,
+	registry app.ConnectorRegistry,
+	exchanger app.CodeExchanger,
+	tokens *app.TokenUsecase,
+	secrets app.ClientSecrets,
+	redirects app.RedirectAllowlist,
+) *app.OAuthUsecase {
+	return app.NewOAuthUsecase(conns, states, registry, exchanger, tokens, secrets, redirects)
 }
 
 func transportFxModule() fx.Option {
@@ -133,6 +152,7 @@ func transportFxModule() fx.Option {
 		kitrest.NewFxMiddleware(kitrest.NewGatewayMiddleware),
 		kitrest.NewFxController(gleipnirhttp.NewConnectorController),
 		kitrest.NewFxController(gleipnirhttp.NewConnectionController),
+		kitrest.NewFxController(gleipnirhttp.NewOAuthController),
 		kitgrpc.NewFxController(gleipnirgrpc.NewGleipnirController),
 		fx.Invoke(registerRefreshCron),
 	)

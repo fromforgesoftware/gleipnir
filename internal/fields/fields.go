@@ -12,4 +12,5 @@ const (
 	Kind         = "kind"
 	KeyID        = "keyId"
 	ExpiresAt    = "expiresAt"
+	State        = "state"
 )

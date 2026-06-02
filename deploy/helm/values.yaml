@@ -86,6 +86,13 @@ oauth:
   # - slug: coinbase
   #   clientId: ''
   #   clientSecret: ''
+  # redirectUris is the exact-match allowlist of redirect_uri values Gleipnir
+  # will send to a provider on authorize and accept back on callback. It is
+  # surfaced as GLEIPNIR_OAUTH_REDIRECT_URIS (comma-separated). An empty list
+  # fails closed (the authorization-code flow is disabled): never reflect a
+  # caller-supplied redirect_uri, which would be an open redirect.
+  redirectUris: []
+  # - https://app.example.com/oauth/callback
 
 # Pre-install / pre-upgrade migration job (runs /app/migrator).
 migrationJob:

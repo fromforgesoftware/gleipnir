@@ -91,6 +91,7 @@ func DefaultConnectors() []domain.Connector {
 			AuthURL:  "https://login.coinbase.com/oauth2/auth",
 			TokenURL: "https://login.coinbase.com/oauth2/token",
 			Scopes:   []string{"wallet:accounts:read", "wallet:trades:create"},
+			PKCE:     true,
 			Rate:     domain.RateProfile{Limit: 10, Window: time.Second},
 		},
 	}

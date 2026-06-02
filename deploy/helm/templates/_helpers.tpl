@@ -113,6 +113,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
       name: {{ include "gleipnir.oauthSecretName" $ }}
       key: GLEIPNIR_OAUTH_{{ .slug | upper }}_CLIENT_SECRET
 {{- end }}
+{{- if .Values.oauth.redirectUris }}
+- name: GLEIPNIR_OAUTH_REDIRECT_URIS
+  value: {{ join "," .Values.oauth.redirectUris | quote }}
+{{- end }}
 {{- if .Values.gatewaySecret }}
 - name: FORGE_GATEWAY_SECRET
   value: {{ .Values.gatewaySecret | quote }}

@@ -48,7 +48,12 @@ type Connector struct {
 	AuthURL  string
 	TokenURL string
 	Scopes   []string
-	Rate     RateProfile
+	// PKCE marks providers that support (or require) RFC 7636 Proof Key for
+	// Code Exchange. When true the authorize step generates a code_verifier /
+	// code_challenge and the token exchange replays the verifier — mandatory
+	// for public/SPA-style clients that cannot keep a client secret.
+	PKCE bool
+	Rate RateProfile
 }
 
 func (c Connector) ID() string            { return c.Slug }

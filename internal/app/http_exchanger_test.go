@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -87,4 +88,81 @@ func TestHTTPExchanger_NoTokenURL(t *testing.T) {
 	ex := app.NewHTTPExchanger(httpclient.New(), ratelimit.New(ratelimit.NewInMemoryStore()), staticSecrets{ok: false})
 	_, err := ex.Refresh(context.Background(), domain.Connector{Slug: "binance"}, "rt")
 	assert.Error(t, err)
+}
+
+func TestHTTPExchanger_ExchangeCodeSuccess(t *testing.T) {
+	var got url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		got = r.Form
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"AT","refresh_token":"RT","expires_in":3600,"token_type":"Bearer"}`))
+	}))
+	defer srv.Close()
+
+	ex := app.NewHTTPExchanger(httpclient.New(), ratelimit.New(ratelimit.NewInMemoryStore()),
+		staticSecrets{id: "cid", secret: "csecret", ok: true},
+		app.WithExchangerClock(func() time.Time { return fixedNow }))
+	connector := domain.Connector{Slug: "coinbase", TokenURL: srv.URL, Rate: domain.RateProfile{Limit: 100, Window: time.Minute}}
+
+	sec, err := ex.ExchangeCode(context.Background(), connector, "auth-code", "https://app/cb", "verifier-123")
+	require.NoError(t, err)
+	assert.Equal(t, "authorization_code", got.Get("grant_type"))
+	assert.Equal(t, "auth-code", got.Get("code"))
+	assert.Equal(t, "https://app/cb", got.Get("redirect_uri"))
+	assert.Equal(t, "verifier-123", got.Get("code_verifier"))
+	assert.Equal(t, "cid", got.Get("client_id"))
+	assert.Equal(t, "csecret", got.Get("client_secret"))
+	assert.Equal(t, "AT", sec.AccessToken)
+	assert.Equal(t, "RT", sec.RefreshToken)
+	require.NotNil(t, sec.ExpiresAt)
+	assert.Equal(t, fixedNow.Add(time.Hour), *sec.ExpiresAt)
+}
+
+func TestHTTPExchanger_ExchangeCodeOmitsVerifierWhenEmpty(t *testing.T) {
+	var hadVerifier bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		_, hadVerifier = r.Form["code_verifier"]
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"AT"}`))
+	}))
+	defer srv.Close()
+
+	ex := app.NewHTTPExchanger(httpclient.New(), ratelimit.New(ratelimit.NewInMemoryStore()), staticSecrets{ok: false})
+	connector := domain.Connector{Slug: "alpaca", TokenURL: srv.URL, Rate: domain.RateProfile{Limit: 100, Window: time.Minute}}
+
+	_, err := ex.ExchangeCode(context.Background(), connector, "code", "https://app/cb", "")
+	require.NoError(t, err)
+	assert.False(t, hadVerifier, "non-PKCE exchange must not send code_verifier")
+}
+
+func TestHTTPExchanger_ExchangeCodeInvalidGrant(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+	}))
+	defer srv.Close()
+
+	ex := app.NewHTTPExchanger(httpclient.New(), ratelimit.New(ratelimit.NewInMemoryStore()), staticSecrets{ok: false})
+	connector := domain.Connector{Slug: "alpaca", TokenURL: srv.URL, Rate: domain.RateProfile{Limit: 100, Window: time.Minute}}
+
+	_, err := ex.ExchangeCode(context.Background(), connector, "bad", "https://app/cb", "")
+	assert.ErrorIs(t, err, app.ErrNeedsReauth)
+}
+
+func TestHTTPExchanger_ExchangeCodeRateLimited(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"AT"}`))
+	}))
+	defer srv.Close()
+
+	ex := app.NewHTTPExchanger(httpclient.New(), ratelimit.New(ratelimit.NewInMemoryStore()), staticSecrets{ok: false})
+	connector := domain.Connector{Slug: "alpaca", TokenURL: srv.URL, Rate: domain.RateProfile{Limit: 1, Window: time.Hour}}
+
+	_, err := ex.ExchangeCode(context.Background(), connector, "c1", "https://app/cb", "")
+	require.NoError(t, err)
+	_, err = ex.ExchangeCode(context.Background(), connector, "c2", "https://app/cb", "")
+	assert.Error(t, err, "second exchange within the window must be rate limited")
 }
