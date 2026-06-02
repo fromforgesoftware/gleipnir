@@ -1,0 +1,25 @@
+replicaCount: 3
+
+database:
+  host: '' # set by the deploy pipeline / env overlay
+  name: gleipnir
+  schema: gleipnir
+  ssl: require
+  existingSecret: gleipnir-db
+
+# Prod wraps the KEK in Cloud KMS (the wrapping key never leaves the HSM). The
+# deploy pipeline sets vault.kmsKey to the crypto key resource; until then this
+# falls back to an out-of-band KEK secret.
+vault:
+  existingSecret: gleipnir-vault
+  # kmsKey: projects/<p>/locations/<l>/keyRings/<r>/cryptoKeys/gleipnir
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 75
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2

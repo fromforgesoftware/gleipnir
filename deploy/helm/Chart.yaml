@@ -1,0 +1,13 @@
+apiVersion: v2
+name: gleipnir
+description: Gleipnir — forge broker/exchange integration hub
+type: application
+version: 0.1.0
+appVersion: '0.1.0'
+keywords:
+  - integrations
+  - credentials
+  - oauth
+  - forge
+maintainers:
+  - name: Forge

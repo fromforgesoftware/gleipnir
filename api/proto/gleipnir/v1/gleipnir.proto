@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package gleipnir.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// TokenService vends a connection's current provider secret to trusted backend
+// callers (service-to-service). The caller passes the connection's owner; a
+// mismatch yields not-found, never a secret. Refresh tokens never cross the
+// wire — they stay sealed inside Gleipnir.
+service TokenService {
+  // Vend returns the connection's current secret, transparently refreshing it
+  // when it is within the refresh lead of expiry.
+  rpc Vend(VendRequest) returns (VendResponse);
+}
+
+// VendRequest identifies the connection to vend and the owner asserting access.
+message VendRequest {
+  // owner is the opaque owner key the trusted caller asserts.
+  string owner = 1;
+  // connection_id is the connection to vend a secret for.
+  string connection_id = 2;
+}
+
+// VendResponse carries the secret material relevant to the connector's auth
+// type. OAuth connectors populate access_token; API-key connectors populate
+// api_key and api_secret.
+message VendResponse {
+  // access_token is the OAuth bearer token (empty for API-key connectors).
+  string access_token = 1;
+  // api_key is the API key (empty for OAuth connectors).
+  string api_key = 2;
+  // api_secret is the API secret (empty for OAuth connectors).
+  string api_secret = 3;
+  // expires_at is when the vended secret expires, if known.
+  google.protobuf.Timestamp expires_at = 4;
+}

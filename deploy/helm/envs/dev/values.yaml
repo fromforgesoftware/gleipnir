@@ -1,0 +1,19 @@
+replicaCount: 2
+
+database:
+  host: '' # set by the deploy pipeline / env overlay
+  name: gleipnir
+  schema: gleipnir
+  ssl: require
+  existingSecret: gleipnir-db
+
+# Dev-only KEK (non-production). Prod sources this from a KMS-backed secret.
+vault:
+  keyEncryptionKey: '24ckN78VPMEKDbrgVMEZUwtn5vIswCulIphK+666KWI='
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

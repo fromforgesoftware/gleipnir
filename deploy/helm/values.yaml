@@ -1,0 +1,100 @@
+# Default values for the Gleipnir chart.
+nameOverride: ''
+fullnameOverride: ''
+
+replicaCount: 3
+
+image:
+  repository: ghcr.io/fromforgesoftware/gleipnir
+  pullPolicy: IfNotPresent
+  tag: '' # defaults to .Chart.AppVersion
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ''
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+  readOnlyRootFilesystem: true
+
+# Ports: REST/OpenAPI + gRPC.
+ports:
+  http: 8080
+  grpc: 9090
+
+service:
+  type: ClusterIP
+  httpPort: 80
+  grpcPort: 9090
+
+# Database connection. Gleipnir owns its own schema (search_path) inside the
+# target Postgres; consumers sharing a Postgres MUST use distinct schemas.
+database:
+  host: ''
+  port: '5432'
+  name: ''
+  schema: gleipnir
+  ssl: require
+  # Credentials: reference an existing secret with keys DB_USER/DB_PASSWORD,
+  # or set username/password to have the chart create one.
+  existingSecret: ''
+  username: ''
+  password: ''
+
+# Credential vault. Gleipnir envelope-encrypts every stored secret under a data
+# key wrapped by a key-encryption key (KEK).
+#   - Production: set kmsKey to a Cloud KMS crypto key resource; the wrapping
+#     key never leaves the HSM and auth uses workload identity (no KEK secret).
+#   - Dev/local: leave kmsKey empty and provide a base64 32-byte KEK via
+#     keyEncryptionKey (chart-created secret) or existingSecret.
+vault:
+  # Cloud KMS crypto key resource:
+  # projects/P/locations/L/keyRings/R/cryptoKeys/K. When set, takes precedence
+  # and no local KEK secret is created.
+  kmsKey: ''
+  existingSecret: ''
+  keyEncryptionKey: ''
+
+# Pre-install / pre-upgrade migration job (runs /app/migrator).
+migrationJob:
+  enabled: true
+  backoffLimit: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: '1'
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 75
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Shared HMAC secret gating /api admin routes to the Foundry gateway
+# (empty = open). Must match across Foundry and the products it manages.
+gatewaySecret: ''
