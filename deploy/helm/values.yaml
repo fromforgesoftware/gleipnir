@@ -68,6 +68,25 @@ vault:
   existingSecret: ''
   keyEncryptionKey: ''
 
+# OAuth app (client) credentials per connector. Gleipnir reads them from
+# GLEIPNIR_OAUTH_<SLUG>_CLIENT_ID / _CLIENT_SECRET (slug upper-cased) when it
+# performs the authorization-code exchange / refresh for OAuth2 connectors.
+# The static catalog (internal/app/connector_registry.go) ships two OAuth2
+# connectors: alpaca and coinbase (binance is API-key, no OAuth app needed).
+#   - Chart-created secret: list connectors below with clientId/clientSecret
+#     (use a values override or --set, never commit real secrets).
+#   - Existing secret: set existingSecret to a Secret holding keys named
+#     GLEIPNIR_OAUTH_<SLUG>_CLIENT_ID / _CLIENT_SECRET, and leave connectors [].
+oauth:
+  existingSecret: ''
+  connectors: []
+  # - slug: alpaca
+  #   clientId: ''
+  #   clientSecret: ''
+  # - slug: coinbase
+  #   clientId: ''
+  #   clientSecret: ''
+
 # Pre-install / pre-upgrade migration job (runs /app/migrator).
 migrationJob:
   enabled: true

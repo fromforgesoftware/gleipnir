@@ -1,15 +1,18 @@
 # Gleipnir builds two binaries (server + migrator) into one distroless image.
-# Build context is the forge repo root. GOWORK=off so the module resolves
-# go/kit from its published version (not the workspace).
+# Standalone module: build context is this repo root. GOWORK=off so the module
+# resolves go-kit from its published version (github.com/fromforgesoftware/go-kit).
 ARG GO_VERSION=1.25
 FROM golang:${GO_VERSION}-alpine AS builder
 WORKDIR /src
-
-# Only the module surface Gleipnir needs: the service itself.
-COPY services/gleipnir/ /src/services/gleipnir/
-
-WORKDIR /src/services/gleipnir
 ENV GOWORK=off
+
+# Resolve dependencies first for a cached layer.
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Module source (cmd, internal, pkg, api).
+COPY . .
+
 RUN CGO_ENABLED=0 go build -trimpath -o /out/server   ./cmd/server
 RUN CGO_ENABLED=0 go build -trimpath -o /out/migrator ./cmd/migrator
 
