@@ -4,23 +4,59 @@ on:
     branches: [main]
   pull_request:
 jobs:
+  # Build/vet/test against the PINNED, published go-kit (v0.1.0 in go.mod)
+  # resolved from the module proxy. No sibling checkout, no `go work` override:
+  # CI must exercise the dependency version we actually released against.
   go:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: gleipnir
-      - uses: actions/checkout@v4
-        with:
-          repository: fromforgesoftware/go-kit
-          path: go-kit
       - uses: actions/setup-go@v5
         with:
-          go-version-file: gleipnir/go.mod
-      - name: build + vet + test (go-kit via workspace)
+          go-version-file: go.mod
+      - name: build + vet + test (pinned go-kit)
         run: |
-          cd gleipnir
-          go work init . ../go-kit
           go build ./...
           go vet ./...
           go test ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.1.1
+
+  # Integration suites are gated by `//go:build integration` and stand up their
+  # own Postgres via gnomock, which talks to the Docker daemon on the runner
+  # (ubuntu-latest ships Docker). The tests do NOT consume an external DSN /
+  # service container — they self-provision and inject DB_* env themselves, so
+  # no `services:` block is wired here (it would be unused). They simply require
+  # a working Docker daemon.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: integration tests (gnomock Postgres via Docker)
+        run: go test -tags=integration ./...
+
+  # Fail if the committed generated protobuf code drifts from api/proto.
+  buf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+      - name: buf generate is up to date
+        run: |
+          buf generate
+          git diff --exit-status
