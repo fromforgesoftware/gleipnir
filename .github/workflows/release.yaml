@@ -40,3 +40,44 @@ jobs:
           helm registry login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
           helm package deploy/helm --version "${{ steps.v.outputs.ver }}" --app-version "${{ steps.v.outputs.ver }}"
           helm push *-${{ steps.v.outputs.ver }}.tgz ${{ env.CHART_REPO }}
+
+  # Build the console plugin (a single Grafana-style SystemJS module.js that
+  # externalises the shared singletons) and push it to ghcr as an OCI artifact.
+  # The forge console resolves this artifact's module.js at runtime via the
+  # /apps descriptor; there is no npm publish (the package is private).
+  console-plugin:
+    runs-on: ubuntu-latest
+    env:
+      ARTIFACT: ghcr.io/fromforgesoftware/gleipnir-console
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        id: v
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then RAW="${{ github.event.release.tag_name }}"; else RAW="${{ inputs.version }}"; fi
+          echo "ver=${RAW#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          # The plugin depends on @fromforgesoftware/{forge-console-plugin,ts-kit,
+          # vue-kit} from GitHub Packages, which requires auth even for public
+          # packages; scope only that org.
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@fromforgesoftware'
+      - name: Build console module.js
+        working-directory: console
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          test -f dist/module.js
+      - name: Install oras
+        uses: oras-project/setup-oras@v1
+      - name: oras login ghcr
+        run: oras login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+      - name: Push console plugin OCI artifact
+        run: |
+          oras push "${ARTIFACT}:${{ steps.v.outputs.ver }}" \
+            --artifact-type application/vnd.forge.console.plugin \
+            ./console/dist/
