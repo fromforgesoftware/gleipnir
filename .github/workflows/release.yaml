@@ -77,7 +77,8 @@ jobs:
       - name: oras login ghcr
         run: oras login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
       - name: Push console plugin OCI artifact
+        working-directory: console/dist
         run: |
           oras push "${ARTIFACT}:${{ steps.v.outputs.ver }}" \
             --artifact-type application/vnd.forge.console.plugin \
-            ./console/dist/
+            module.js
