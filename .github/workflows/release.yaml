@@ -37,6 +37,8 @@ jobs:
           # Multi-arch: amd64 cloud nodes + arm64 local kind (Apple Silicon).
           platforms: linux/amd64,linux/arm64
           tags: ${{ env.IMAGE }}:${{ steps.v.outputs.ver }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - uses: azure/setup-helm@v4
       - name: Package + push Helm chart
         run: |

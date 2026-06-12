@@ -2,7 +2,8 @@
 # Standalone module: build context is this repo root. GOWORK=off so the module
 # resolves go-kit from its published version (github.com/fromforgesoftware/go-kit).
 ARG GO_VERSION=1.25
-FROM golang:${GO_VERSION}-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS builder
+ARG TARGETOS TARGETARCH
 WORKDIR /src
 ENV GOWORK=off
 
@@ -13,8 +14,8 @@ RUN go mod download
 # Module source (cmd, internal, pkg, api).
 COPY . .
 
-RUN CGO_ENABLED=0 go build -trimpath -o /out/server   ./cmd/server
-RUN CGO_ENABLED=0 go build -trimpath -o /out/migrator ./cmd/migrator
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -o /out/server   ./cmd/server
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -o /out/migrator ./cmd/migrator
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=builder /out/server   /app/server
