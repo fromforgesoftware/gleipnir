@@ -31,7 +31,7 @@ func TestConnectorRegistry_LookupAndList(t *testing.T) {
 
 func TestDefaultConnectorRegistry_HasKnownConnectors(t *testing.T) {
 	reg := app.NewDefaultConnectorRegistry()
-	for _, slug := range []string{"alpaca", "binance", "coinbase"} {
+	for _, slug := range []string{"alpaca", "binance", "coinbase", "kraken", "bybit", "bitmex", "ibkr-flex", "tradovate", "polygon"} {
 		_, ok := reg.Lookup(slug)
 		assert.True(t, ok, "default catalog must include %q", slug)
 	}

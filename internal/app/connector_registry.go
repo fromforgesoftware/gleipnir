@@ -85,6 +85,42 @@ func DefaultConnectors() []domain.Connector {
 			Rate:     domain.RateProfile{Limit: 1200, Window: time.Minute},
 		},
 		{
+			Slug:     "kraken",
+			Name:     "Kraken",
+			AuthType: domain.AuthTypeAPIKey,
+			Rate:     domain.RateProfile{Limit: 60, Window: time.Minute},
+		},
+		{
+			Slug:     "bybit",
+			Name:     "Bybit",
+			AuthType: domain.AuthTypeAPIKey,
+			Rate:     domain.RateProfile{Limit: 600, Window: time.Minute},
+		},
+		{
+			Slug:     "bitmex",
+			Name:     "BitMEX",
+			AuthType: domain.AuthTypeAPIKey,
+			Rate:     domain.RateProfile{Limit: 120, Window: time.Minute},
+		},
+		{
+			Slug:     "ibkr-flex",
+			Name:     "Interactive Brokers (Flex)",
+			AuthType: domain.AuthTypeAPIKey,
+			Rate:     domain.RateProfile{Limit: 10, Window: time.Minute},
+		},
+		{
+			Slug:     "tradovate",
+			Name:     "Tradovate",
+			AuthType: domain.AuthTypeAPIKey,
+			Rate:     domain.RateProfile{Limit: 240, Window: time.Minute},
+		},
+		{
+			Slug:     "polygon",
+			Name:     "Polygon.io",
+			AuthType: domain.AuthTypeAPIKey,
+			Rate:     domain.RateProfile{Limit: 100, Window: time.Minute},
+		},
+		{
 			Slug:     "coinbase",
 			Name:     "Coinbase",
 			AuthType: domain.AuthTypeOAuth2,
