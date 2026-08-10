@@ -148,7 +148,14 @@ func (r *connectionRepo) SetStatus(ctx context.Context, id string, status domain
 
 func (r *connectionRepo) Delete(ctx context.Context, delType repository.DeleteType, opts ...search.Option) error {
 	q := search.New(opts...).Query()
-	if err := query.Validate(q, query.MandatoryFilters(fields.ID)); err != nil {
+	// Owner is OPTIONAL here rather than merely tolerated: the usecase adds it so the DELETE itself
+	// is scoped to the caller, not just the ownership check that precedes it. Without that the
+	// statement would run on id alone, leaving a window between "is this mine?" and "delete it".
+	// The validator rejects any filter it has not been told about, which is why it must be named.
+	if err := query.Validate(q,
+		query.MandatoryFilters(fields.ID),
+		query.OptionalFilters(fields.Owner),
+	); err != nil {
 		return err
 	}
 	tx := r.QueryApply(ctx, q).Model(&connectionEntity{})

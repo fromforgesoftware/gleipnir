@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/fromforgesoftware/go-kit/application/repository"
 	"github.com/fromforgesoftware/gleipnir/internal/db"
 	"github.com/fromforgesoftware/gleipnir/internal/domain"
 	"github.com/fromforgesoftware/gleipnir/internal/internaltest"
+	"github.com/fromforgesoftware/go-kit/application/repository"
 )
 
 const (
@@ -86,4 +86,47 @@ func TestConnectionListScopedByOwner(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, got.TotalCount())
 	assert.Len(t, got.Results(), 2)
+}
+
+// TestConnectionDeleteAcceptsAnOwnerFilter pins the query the usecase actually sends.
+//
+// The usecase scopes the DELETE by owner as well as id, so the statement itself cannot touch another
+// workspace's row — there is no window between "is this mine?" and "delete it". The kit's query
+// validator rejects any filter it has not been told to expect, so the repository has to declare
+// owner as permitted.
+//
+// This is an integration test because the failure lives in the validator, and the unit tests use a
+// fake repository that does not validate anything: everything passed locally and the delete returned
+// 400 "filter by owner is not allowed" against the running service.
+func TestConnectionDeleteAcceptsAnOwnerFilter(t *testing.T) {
+	client := internaltest.GetDB(t)
+	t.Cleanup(func() { internaltest.TruncateTables(t, client) })
+
+	ctx := context.Background()
+	repo, err := db.NewConnectionRepository(client)
+	require.NoError(t, err)
+
+	mine, err := repo.Create(ctx, domain.NewConnection(ownerA, "kraken"))
+	require.NoError(t, err)
+	theirs, err := repo.Create(ctx, domain.NewConnection(ownerB, "kraken"))
+	require.NoError(t, err)
+
+	require.NoError(t, repo.Delete(ctx, repository.DeleteTypeHard,
+		internaltest.GetByID(mine.ID()), internaltest.FilterByOwner(ownerA)))
+
+	gone, err := repo.Get(ctx, internaltest.GetByID(mine.ID()))
+	assert.Nil(t, gone, "the owner's own connection should be deleted")
+	assert.Error(t, err)
+
+	// The other workspace's row is untouched, which is the point of scoping the statement.
+	survivor, err := repo.Get(ctx, internaltest.GetByID(theirs.ID()))
+	require.NoError(t, err)
+	require.NotNil(t, survivor)
+
+	// And an id+owner pair that do not match deletes nothing rather than falling back to id alone.
+	require.NoError(t, repo.Delete(ctx, repository.DeleteTypeHard,
+		internaltest.GetByID(theirs.ID()), internaltest.FilterByOwner(ownerA)))
+	stillThere, err := repo.Get(ctx, internaltest.GetByID(theirs.ID()))
+	require.NoError(t, err)
+	assert.NotNil(t, stillThere, "a mismatched owner must not delete the row")
 }
