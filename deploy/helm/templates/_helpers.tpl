@@ -91,6 +91,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
     secretKeyRef:
       name: {{ include "gleipnir.dbSecretName" . }}
       key: DB_PASSWORD
+# The aegis issuer and JWKS URL the connection routes authenticate against. REQUIRED: this service
+# holds broker credentials, and without a verifier every connection route answers anyone who can
+# reach it, so the template fails rather than render a deployment that starts and serves them.
+- name: AEGIS_ISSUER
+  value: {{ required "aegis.issuer is required: gleipnir authenticates connection routes against aegis" .Values.aegis.issuer | quote }}
+- name: AEGIS_JWKS_URL
+  value: {{ required "aegis.jwksUrl is required: gleipnir authenticates connection routes against aegis" .Values.aegis.jwksUrl | quote }}
 {{- if .Values.vault.kmsKey }}
 - name: GLEIPNIR_KMS_KEY
   value: {{ .Values.vault.kmsKey | quote }}

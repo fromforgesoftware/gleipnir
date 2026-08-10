@@ -9,6 +9,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/fromforgesoftware/aegis/pkg/authn"
 	"github.com/fromforgesoftware/go-kit/httpclient"
 	"github.com/fromforgesoftware/go-kit/monitoring/logger"
 	"github.com/fromforgesoftware/go-kit/ratelimit"
@@ -147,8 +148,25 @@ func newOAuthUsecase(
 	return app.NewOAuthUsecase(conns, states, registry, exchanger, tokens, secrets, redirects)
 }
 
+// newVerifier builds the aegis access-token verifier, matching how every other forge service
+// authenticates a browser call: verify the JWT's signature against the issuing realm's JWKS.
+//
+// It is required, not optional. gleipnir holds broker credentials, and a deployment that forgot to
+// set these vars would otherwise start happily and serve every connection route to anyone — which
+// is the state this service shipped in.
+func newVerifier() *authn.Verifier {
+	return authn.NewVerifier(
+		os.Getenv("AEGIS_ISSUER"),
+		authn.WithJWKSURL(os.Getenv("AEGIS_JWKS_URL")),
+	)
+}
+
 func transportFxModule() fx.Option {
 	return fx.Module("gleipnir:transport",
+		fx.Provide(
+			newVerifier,
+			fx.Annotate(authn.NewAuthenticator, fx.As(new(kitrest.HTTPAuthenticator))),
+		),
 		kitrest.NewFxMiddleware(kitrest.NewGatewayMiddleware),
 		kitrest.NewFxController(gleipnirhttp.NewConnectorController),
 		kitrest.NewFxController(gleipnirhttp.NewConnectionController),

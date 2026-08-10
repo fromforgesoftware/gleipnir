@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/fromforgesoftware/aegis/pkg/authn"
+	apierrors "github.com/fromforgesoftware/go-kit/errors"
 	"github.com/fromforgesoftware/go-kit/openapi"
 	"github.com/fromforgesoftware/go-kit/resource"
 	kitrest "github.com/fromforgesoftware/go-kit/transport/rest"
@@ -23,14 +25,19 @@ import (
 // response carries only the authorized connection's id/status.
 type OAuthController struct {
 	oauth *app.OAuthUsecase
+	auth  kitrest.HTTPAuthenticator
 }
 
-func NewOAuthController(oauth *app.OAuthUsecase) kitrest.Controller {
-	return &OAuthController{oauth: oauth}
+func NewOAuthController(oauth *app.OAuthUsecase, auth kitrest.HTTPAuthenticator) kitrest.Controller {
+	return &OAuthController{oauth: oauth, auth: auth}
 }
 
 func (c *OAuthController) Routes(r kitrest.Router) {
 	r.Route("/api/connections/{id}/oauth", func(r kitrest.Router) {
+		// Both steps are authenticated. The callback is reached by the SPA posting the state and
+		// code it received, not by the provider itself, so it has a bearer token to present — and
+		// the single-use state is a CSRF defence, not an identity.
+		r.Use(kitrest.NewAuthMiddleware(c.auth))
 		r.Post("/authorize", kitrest.NewJsonApiCommandHandler(
 			c.authorize, c.decodeAuthorize, identityDTO[*api.OAuthAuthorizationDTO],
 			kitrest.HandlerWithSuccessStatus(http.StatusOK),
@@ -57,13 +64,16 @@ func (c *OAuthController) Routes(r kitrest.Router) {
 func identityDTO[T resource.Resource](dto T) T { return dto }
 
 type authorizeCommand struct {
-	Owner        string
 	ConnectionID string
 	RedirectURI  string
 }
 
 func (c *OAuthController) authorize(ctx context.Context, cmd authorizeCommand) (*api.OAuthAuthorizationDTO, error) {
-	url, err := c.oauth.AuthorizeStart(ctx, cmd.Owner, cmd.ConnectionID, cmd.RedirectURI)
+	owner := authn.OwnerFromCtx(ctx)
+	if owner == "" {
+		return nil, apierrors.Unauthorized("authentication required")
+	}
+	url, err := c.oauth.AuthorizeStart(ctx, owner, cmd.ConnectionID, cmd.RedirectURI)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +89,6 @@ func (c *OAuthController) decodeAuthorize(req *http.Request) (authorizeCommand, 
 		return authorizeCommand{}, err
 	}
 	return authorizeCommand{
-		Owner:        req.URL.Query().Get("owner"),
 		ConnectionID: req.PathValue("id"),
 		RedirectURI:  body.RRedirectURI,
 	}, nil

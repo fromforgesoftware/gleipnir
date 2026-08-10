@@ -60,6 +60,14 @@ database:
 #     key never leaves the HSM and auth uses workload identity (no KEK secret).
 #   - Dev/local: leave kmsKey empty and provide a base64 32-byte KEK via
 #     keyEncryptionKey (chart-created secret) or existingSecret.
+# aegis is the identity service whose access tokens authenticate the connection routes. Both values
+# are required — see the note in _helpers.tpl. The org claim in a verified token is the `owner` every
+# connection is scoped by, so a wrong issuer here does not merely reject callers, it would scope them
+# to the wrong workspace.
+aegis:
+  issuer: ''
+  jwksUrl: ''
+
 vault:
   # Cloud KMS crypto key resource:
   # projects/P/locations/L/keyRings/R/cryptoKeys/K. When set, takes precedence

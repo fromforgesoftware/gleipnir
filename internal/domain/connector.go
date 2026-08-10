@@ -40,9 +40,15 @@ type RateProfile struct {
 // Its Slug is the identifier; it is not owner-scoped or persisted. It satisfies
 // resource.Resource (id = slug) so it flows through the kit JSON:API handlers.
 type Connector struct {
-	Slug     string
-	Name     string
-	AuthType AuthType
+	Slug string
+	Name string
+	// Description is one sentence on what the provider is for, and DocsURL points at its API
+	// documentation. Both are presentation metadata, and they live here rather than in each client
+	// because /api/connectors is the catalogue: a connector added to this registry should render
+	// completely in every consumer without a second one having to be taught about it.
+	Description string
+	DocsURL     string
+	AuthType    AuthType
 	// AuthURL/TokenURL drive the OAuth2 authorize + token/refresh exchange
 	// (empty for API_KEY connectors).
 	AuthURL  string
