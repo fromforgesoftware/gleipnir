@@ -53,7 +53,7 @@ type fakeConnRepo struct {
 	deleteCalled bool
 	deleteOpts   []search.Option
 
-	patchOpts []repository.PatchOption
+	statusSet *domain.ConnectionStatus
 
 	lastGetOpts  []search.Option
 	lastListOpts []search.Option
@@ -100,11 +100,9 @@ func (f *fakeConnRepo) Delete(_ context.Context, _ repository.DeleteType, opts .
 	return nil
 }
 
-func (f *fakeConnRepo) Patch(
-	_ context.Context, opts ...repository.PatchOption,
-) ([]domain.Connection, error) {
-	f.patchOpts = opts
-	return f.rows, nil
+func (f *fakeConnRepo) SetStatus(_ context.Context, _ string, status domain.ConnectionStatus) error {
+	f.statusSet = &status
+	return nil
 }
 
 // ownerFilter reads the owner the usecase filtered by out of the search options.
@@ -166,7 +164,7 @@ func TestConnectionUsecase_RefusesAnUnauthenticatedContext(t *testing.T) {
 	t.Run("SetStatus", func(t *testing.T) {
 		_, err := uc.SetStatus(ctx, connID, domain.ConnectionStatusRevoked)
 		requireUnauthorized(t, err)
-		assert.Nil(t, repo.patchOpts, "an unauthenticated patch must not reach the repository")
+		assert.Nil(t, repo.statusSet, "an unauthenticated status change must not reach the repository")
 	})
 	t.Run("OwnedConnection", func(t *testing.T) {
 		_, err := uc.OwnedConnection(ctx, connID)
@@ -271,7 +269,7 @@ func TestConnectionUsecase_SetStatusRejectsAnUnknownStatus(t *testing.T) {
 
 	_, err := uc.SetStatus(authed(callerOrg), connID, domain.ConnectionStatus("PROBABLY_FINE"))
 	require.Error(t, err)
-	assert.Nil(t, repo.patchOpts, "an invalid status must not reach the repository")
+	assert.Nil(t, repo.statusSet, "an invalid status must not reach the repository")
 }
 
 func TestConnectionUsecase_SetStatusRefusesAnotherWorkspacesConnection(t *testing.T) {
@@ -279,7 +277,7 @@ func TestConnectionUsecase_SetStatusRefusesAnotherWorkspacesConnection(t *testin
 
 	_, err := uc.SetStatus(authed(callerOrg), connID, domain.ConnectionStatusRevoked)
 	require.Error(t, err)
-	assert.Nil(t, repo.patchOpts)
+	assert.Nil(t, repo.statusSet)
 }
 
 func TestConnectionUsecase_SetStatusRevokesWithoutDeleting(t *testing.T) {
@@ -288,7 +286,8 @@ func TestConnectionUsecase_SetStatusRevokesWithoutDeleting(t *testing.T) {
 	_, err := uc.SetStatus(authed(callerOrg), connID, domain.ConnectionStatusRevoked)
 	require.NoError(t, err)
 
-	require.NotNil(t, repo.patchOpts, "the status change must reach the repository")
+	require.NotNil(t, repo.statusSet, "the status change must reach the repository")
+	assert.Equal(t, domain.ConnectionStatusRevoked, *repo.statusSet)
 	// The point of the endpoint: disabling leaves the credential sealed and in place, so re-enabling
 	// does not mean pasting keys again.
 	assert.False(t, repo.deleteCalled, "disabling must not delete anything")

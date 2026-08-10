@@ -22,7 +22,10 @@ type ConnectionRepository interface {
 	repository.Getter[domain.Connection]
 	repository.Lister[domain.Connection]
 	repository.Deleter
-	repository.Patcher[domain.Connection]
+	// SetStatus is the repo's own single-column update, shared with ConnectionStore. Reaching for the
+	// generic Patcher instead would mean adding a method the concrete repository does not implement,
+	// and fx.As checks that by reflection at startup rather than at compile time.
+	SetStatus(ctx context.Context, id string, status domain.ConnectionStatus) error
 }
 
 // ConnectionUsecase is the management surface for connections.
@@ -179,15 +182,9 @@ func (u *connectionUsecase) SetStatus(
 	if _, err := u.OwnedConnection(ctx, id); err != nil {
 		return nil, err
 	}
-	patched, err := u.conns.Patch(ctx,
-		repository.PatchSearchOpts(search.WithQueryOpts(query.FilterBy(filter.OpEq, fields.ID, id))),
-		repository.PatchField(fields.Status, string(status)),
-	)
-	if err != nil {
+	if err := u.conns.SetStatus(ctx, id, status); err != nil {
 		return nil, err
 	}
-	if len(patched) == 0 {
-		return nil, apierrors.NotFound("connection", id)
-	}
-	return patched[0], nil
+	// Re-read rather than assembling the result here, so the response reflects what was stored.
+	return u.OwnedConnection(ctx, id)
 }
