@@ -268,6 +268,49 @@ func TestStoreCredentialThenVend_RoundTrip(t *testing.T) {
 	assert.Equal(t, "stored", got.AccessToken)
 }
 
+// A connector whose credential is more than a key and a secret round-trips its extra fields intact.
+//
+// Tradovate is the case that forced this: opening a session needs an account login, an API key pair, a
+// stable device id and an application identifier. Without somewhere structured to put them, the caller's
+// only option is to encode them into apiSecret — and a blob inside a string is a shape nothing
+// validates and nothing can migrate.
+//
+// The assertion is on the values surviving the SEAL, not merely on the struct carrying them: these go
+// through envelope encryption, and a field the sealer drops would look identical to one nobody set.
+func TestStoreCredentialThenVend_CarriesExtraFields(t *testing.T) {
+	v := testVault(t)
+	creds := &memCreds{connID: "c1", v: v}
+	conns := &memConns{conn: conn("c1", domain.ConnectionStatusActive)}
+	u := newUsecaseWith(t, conns, creds, v, &fakeExchanger{}, &fakeNotifier{})
+
+	_, err := u.StoreCredential(context.Background(), "c1", domain.CredentialKindAPIKey,
+		app.Secret{
+			APIKey:    "cid",
+			APISecret: "sec",
+			Fields: map[string]string{
+				"name":     "trader",
+				"password": "hunter2",
+				"deviceId": "stable-device",
+				"appId":    "Forge",
+			},
+		})
+	require.NoError(t, err)
+
+	got, err := u.Vend(context.Background(), testOwner, "c1")
+	require.NoError(t, err)
+	assert.Equal(t, "cid", got.APIKey)
+	// The connector comes from the connection, not from the sealed payload, so a caller can pick an
+	// adapter without a second round trip.
+	assert.Equal(t, "binance", got.Connector,
+		"vend does not say which connector the connection is for")
+	assert.Equal(t, map[string]string{
+		"name":     "trader",
+		"password": "hunter2",
+		"deviceId": "stable-device",
+		"appId":    "Forge",
+	}, got.Fields)
+}
+
 func newUsecaseWith(t *testing.T, conns *memConns, creds *memCreds, v *vault.Vault, ex *fakeExchanger, no *fakeNotifier) *app.TokenUsecase {
 	t.Helper()
 	reg := fakeRegistry{connector: domain.Connector{Slug: "binance", AuthType: domain.AuthTypeOAuth2}, ok: true}

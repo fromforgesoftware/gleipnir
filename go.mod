@@ -4,7 +4,7 @@ go 1.25.10
 
 require (
 	cloud.google.com/go/kms v1.23.0
-	github.com/fromforgesoftware/go-kit v0.4.0
+	github.com/fromforgesoftware/go-kit v0.4.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/googleapis/gax-go/v2 v2.15.0
 	github.com/lib/pq v1.10.9

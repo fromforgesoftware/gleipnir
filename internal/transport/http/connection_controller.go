@@ -140,6 +140,7 @@ func (c *ConnectionController) decodeStoreCredential(req *http.Request) (storeCr
 			APIKey:       body.RAPIKey,
 			APISecret:    body.RAPISecret,
 			ExpiresAt:    body.RExpiresAt,
+			Fields:       body.RFields,
 		},
 	}, nil
 }

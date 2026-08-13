@@ -34,4 +34,33 @@ message VendResponse {
   string api_secret = 3;
   // expires_at is when the vended secret expires, if known.
   google.protobuf.Timestamp expires_at = 4;
+  // fields carries the credential material that does not fit the two-string
+  // API-key shape.
+  //
+  // Some venues need more than a key and a secret to open a session: Tradovate
+  // wants an account login, an API key pair, a stable device id and an
+  // application identifier, and a FIX session wants sender and target comp ids.
+  // Packing those into api_secret as an encoded blob would put structure inside
+  // a string that nothing validates, and adding a named field per venue would
+  // make this message grow with the connector catalog.
+  //
+  // Gleipnir does not interpret these. It seals them, vends them back, and the
+  // connector-specific adapter on the other side is what knows the names it
+  // needs — which is also what keeps venue vocabulary out of the credential
+  // store.
+  map<string, string> fields = 5;
+  // connector is the connector slug this connection belongs to — "tradovate",
+  // "coinbase", "ibkr-flex".
+  //
+  // It is here because the caller needs it and asking separately would mean a
+  // second round trip to learn something this response already knows. A trading
+  // runner holding a connection id has to decide which venue adapter to build
+  // before it can use the secret at all, and the alternative to being told is
+  // guessing — either by trying adapters until one authenticates, or by keeping
+  // its own copy of which connection is which, which is a second answer that can
+  // disagree with this one.
+  //
+  // Not secret. It is returned on the S2S path only because that is where the
+  // rest of this message goes.
+  string connector = 6;
 }

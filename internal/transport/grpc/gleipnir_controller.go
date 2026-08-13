@@ -35,6 +35,8 @@ func (c *gleipnirController) Vend(ctx context.Context, req *gleipnirv1.VendReque
 		AccessToken: secret.AccessToken,
 		ApiKey:      secret.APIKey,
 		ApiSecret:   secret.APISecret,
+		Fields:      secret.Fields,
+		Connector:   secret.Connector,
 	}
 	if secret.ExpiresAt != nil {
 		resp.ExpiresAt = timestamppb.New(*secret.ExpiresAt)

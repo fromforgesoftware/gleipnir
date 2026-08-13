@@ -33,6 +33,34 @@ type Secret struct {
 	APIKey       string     `json:"apiKey,omitempty"`
 	APISecret    string     `json:"apiSecret,omitempty"`
 	ExpiresAt    *time.Time `json:"expiresAt,omitempty"`
+
+	// Fields carries whatever else a connector needs to open a session — an
+	// account login, a device id, comp ids — for the venues whose credential is
+	// not two strings.
+	//
+	// Gleipnir does not interpret these, which is the point: the names belong to
+	// the connector's own adapter, and a credential store that understood them
+	// would need updating for every venue. Adding this needs no migration: the
+	// sealed payload is this struct as JSON, so an older credential simply
+	// decodes with no fields.
+	//
+	// Same secrecy as everything else here — sealed in the vault, never returned
+	// by a read, and only ever handed out over the S2S Vend call.
+	Fields map[string]string `json:"fields,omitempty"`
+}
+
+// Vended is what a trusted caller gets back from Vend: the secret, plus the connection context needed
+// to make sense of it.
+//
+// Connector is separate from Secret rather than a field on it because Secret is the SEALED payload —
+// what a field on it would mean is "the connector slug was encrypted into the vault alongside the
+// password", which is both unnecessary and a second copy of something the connection row already
+// states, free to drift from it after a connector is renamed.
+type Vended struct {
+	Secret
+	// Connector is the connection's connector slug. The caller needs it to choose an adapter before it
+	// can use the secret at all.
+	Connector string
 }
 
 // ConnectionStore reads connections and flips their lifecycle status.
@@ -141,26 +169,30 @@ func (u *TokenUsecase) StoreCredential(ctx context.Context, connectionID string,
 // returns after a single decrypt with no provider round-trip. The owner must
 // match the connection's owner — a foreign owner gets a not-found, never a
 // secret.
-func (u *TokenUsecase) Vend(ctx context.Context, owner, connectionID string) (Secret, error) {
+func (u *TokenUsecase) Vend(ctx context.Context, owner, connectionID string) (Vended, error) {
 	conn, err := u.conns.Get(ctx, byID(connectionID), byOwner(owner))
 	if err != nil {
-		return Secret{}, err
+		return Vended{}, err
 	}
 	if conn.Status() == domain.ConnectionStatusRevoked {
-		return Secret{}, ErrRevoked
+		return Vended{}, ErrRevoked
 	}
 	cred, err := u.creds.Get(ctx, byConnection(connectionID))
 	if err != nil {
-		return Secret{}, err
+		return Vended{}, err
 	}
 	secret, err := u.open(ctx, cred)
 	if err != nil {
-		return Secret{}, err
+		return Vended{}, err
 	}
 	if u.dueForRefresh(cred) {
-		return u.refresh(ctx, conn, cred, secret)
+		refreshed, err := u.refresh(ctx, conn, cred, secret)
+		if err != nil {
+			return Vended{}, err
+		}
+		secret = refreshed
 	}
-	return secret, nil
+	return Vended{Secret: secret, Connector: conn.Connector()}, nil
 }
 
 // RefreshDue refreshes up to limit credentials that fall within the refresh

@@ -21,6 +21,11 @@ type CredentialInputDTO struct {
 	RAPIKey       string     `jsonapi:"attr,apiKey,omitempty"`
 	RAPISecret    string     `jsonapi:"attr,apiSecret,omitempty"`
 	RExpiresAt    *time.Time `jsonapi:"attr,expiresAt,omitempty"`
+
+	// RFields carries the credential material that is not a key and a secret — an
+	// account login, a device id, comp ids. Write-only like the rest of this DTO:
+	// a read never returns it. See app.Secret.Fields for why it is an open map.
+	RFields map[string]string `jsonapi:"attr,fields,omitempty"`
 }
 
 // CredentialDTO is the read-safe wire shape: metadata only, never plaintext.
